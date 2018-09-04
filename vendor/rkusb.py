@@ -2,9 +2,11 @@
 
 # coding=utf-8
 
+import io
 import re
 import protocol
 import time
+import misc.rkcrc as RKCRC
 
 PART_BLOCKSIZE = 0x800  # must be multiple of 512
 PART_OFF_INCR = PART_BLOCKSIZE >> 9
@@ -223,3 +225,12 @@ class RkOperation(object):
                                     ''.join(prepare_cmd(0x00, 0x0006ff00, 0x00000000, 0x00)))
         self.__dev_handle.bulkRead(self.EP_IN, 13)
         print 'Rebooting device'
+
+    def flash_rk_parameter(self, parameter_file):
+        with open(parameter_file) as filename:
+            data = filename.read()
+            buf = RKCRC.make_parameter_image(data)
+        assert len(buf) <= PART_BLOCKSIZE
+        with io.BytesIO(buf) as filename:
+            print 'Writing parameter file %s\n' % parameter_file
+            self.__flash_image_file(0x00000000, PART_BLOCKSIZE, filename)

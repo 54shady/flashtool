@@ -92,8 +92,11 @@ class CliMain(object):
 
     def flash_image(self, part_name, image_file):
         with self.get_operation() as op:
-            offset, size = self.get_partition(part_name)
-            op.flash_image_file(offset, size, image_file)
+            if part_name == '@parameter':
+                op.flash_rk_parameter(image_file)
+            else:
+                offset, size = self.get_partition(part_name)
+                op.flash_image_file(offset, size, image_file)
 
     def get_partition(self, part_name):
         if part_name.startswith('0x'):
