@@ -16,10 +16,36 @@ For example, flash device with boot.img and kernel.img, then reboot:
 python run.py write @boot boot.img @kernel.img kernel.img reboot
 """
 
+from datetime import datetime
 import time
 from vendor.rkusb import list_rk_devices, RkOperation
 import re
 import sys
+
+# a little bit like enum in C language
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
+
+
+def get_color(fg=None, bg=None, bright=False, bold=False, dim=False, reset=False):
+    # manually derived from http://en.wikipedia.org/wiki/ANSI_escape_code#Codes
+    codes = []
+    if reset:
+        codes.append("0")
+    else:
+        if not fg is None:
+            codes.append("3%d" % (fg))
+        if not bg is None:
+            if not bright:
+                codes.append("4%d" % (bg))
+            else:
+                codes.append("10%d" % (bg))
+        if bold:
+            codes.append("1")
+        elif dim:
+            codes.append("2")
+        else:
+            codes.append("22")
+    return "\033[%sm" % (";".join(codes))
 
 
 def get_devices():
@@ -47,13 +73,39 @@ def wait_for_one_device():
     return devices[0]
 
 
-class CliMain(object):
+class FlashToolLogger(object):
+    def __init__(self, use_color=False):
+        self.WARN_COLOR = self.SUCC_COLOR = self.RESET_COLOR = ""
+        if use_color:
+            self.WARN_COLOR = get_color(fg=RED)
+            self.SUCC_COLOR = get_color(fg=GREEN)
+            self.RESET_COLOR = get_color(reset=True)
+
+    def ftlog_print(self, message):
+        sys.stdout.write(message)
+
+    def ftlog_dividor(self):
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.ftlog_print('\n%s============= %s ============%s\n\n' % (
+            self.WARN_COLOR, current_time, self.RESET_COLOR))
+
+    def ftlog_nice(self, message):
+        self.ftlog_print('%s%s%s\n' %
+                         (self.SUCC_COLOR, message, self.RESET_COLOR))
+
+    def ftlog_error(self, message):
+        self.ftlog_print('%sERROR:%s %s' %
+                         (self.WARN_COLOR, message, self.RESET_COLOR))
+
+
+class FlashTool(object):
     '''
     command line mode
     '''
     PARTITION_PATTERN = re.compile(r'(0x[0-9a-fA-F]+)@(0x[0-9a-fA-F]+)')
 
     def __init__(self):
+        self.logger = FlashToolLogger(use_color=True)
         self.bus_id = 0
         self.dev_id = 0
         self.partitions = {}
@@ -155,12 +207,12 @@ class CliMain(object):
             return op
 
     def print_partitions(self):
-        print '=' * 45
+        self.logger.ftlog_dividor()
         print "Partition table format(name : offset@size)"
         for k in self.partitions:
             print '%s : %d@%d' % (
                 k, self.partitions[k][0], self.partitions[k][1])
-        print '=' * 45
+        self.logger.ftlog_dividor()
 
     def load_partitions(self):
         partitions = {}
@@ -174,7 +226,7 @@ class CliMain(object):
 
     def get_rkoperation(self):
         assert self.bus_id and self.dev_id
-        return RkOperation(self.bus_id, self.dev_id)
+        return RkOperation(self.logger, self.bus_id, self.dev_id)
 
     def usage(self):
         print __doc__

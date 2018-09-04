@@ -115,7 +115,8 @@ def prepare_cmd(flag, command, offset, size):
 
 
 class RkOperation(object):
-    def __init__(self, bus_id, dev_id):
+    def __init__(self, logger, bus_id, dev_id):
+        self.__logger = logger
         # get a usb context, which is a session
         self.__context = protocol.USBContext()
         self.__context.setDebug(3)
@@ -209,7 +210,8 @@ class RkOperation(object):
 
     def read_partition(self, offset, size, filename):
         while size > 0:
-            print 'reading flash memory at offset 0x%08X' % offset
+            self.__logger.ftlog_print(
+                "reading flash memory at offset 0x%08X\n" % offset)
 
             self.__dev_handle.bulkWrite(self.EP_OUT,
                                         ''.join(prepare_cmd(0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
@@ -228,25 +230,27 @@ class RkOperation(object):
         self.__init_device()
         original_offset, original_size = offset, size
 
-        print 'Starting flash %s' % file_name
+        self.__logger.ftlog_dividor()
+        self.__logger.ftlog_print("Starting flash %s\n" % file_name)
         with open(file_name) as filename:
             self.__flash_image_file(offset, size, filename)
 
         self.cmp_part_with_file(original_offset, original_size, file_name)
-        print 'Flash Done'
+        self.__logger.ftlog_nice("Done")
+        self.__logger.ftlog_dividor()
 
     def cmp_part_with_file(self, offset, size, file_name):
         '''
         Compare the image file with local copy
         file_name : local file name
         '''
-        print 'Checking image on disk...'
+        self.__logger.ftlog_print("Checking image on disk...\n")
         with open(file_name) as filename:
             ret = self.__cmp_part_with_file(offset, size, filename)
             if not ret:
-                print 'Integrity check Error'
+                self.__logger.ftlog_error("Integrity check Error\n")
             else:
-                print 'Integrity check Successfully'
+                self.__logger.ftlog_nice("Integrity check Successfully\n")
 
     def __cmp_part_with_file(self, offset, size, filename):
         while size > 0:
@@ -263,7 +267,7 @@ class RkOperation(object):
             # check length first
             if len(block1) == len(block2):
                 if block1 != block2:
-                    #print 'Flash at 0x%08X is differnt from file!' % offset
+                    #self.__logger.ftlog_print("Flash at 0x%08X is differnt from file!\n" % offset)
                     self.integrity = False
             # we got some same data
             else:
@@ -274,7 +278,7 @@ class RkOperation(object):
                 # compare the same length of data
                 block2 = block2[:len(block1)]
                 if block1 != block2:
-                    #print 'Flash at 0x%08X is differnt from file!' % offset
+                    #self.__logger.ftlog_print("Flash at 0x%08X is differnt from file!\n" % offset)
                     self.integrity = False
 
             offset += RKFT_OFF_INCR
@@ -304,7 +308,7 @@ class RkOperation(object):
         self.__dev_handle.bulkWrite(self.EP_OUT,
                                     ''.join(prepare_cmd(0x00, 0x0006ff00, 0x00000000, 0x00)))
         self.__dev_handle.bulkRead(self.EP_IN, 13)
-        print 'Rebooting device'
+        self.__logger.ftlog_print("Rebooting device\n")
 
     def flash_rk_parameter(self, parameter_file):
         with open(parameter_file) as filename:
@@ -312,11 +316,13 @@ class RkOperation(object):
             buf = RKCRC.make_parameter_image(data)
         assert len(buf) <= PART_BLOCKSIZE
         with io.BytesIO(buf) as filename:
-            print 'Writing parameter file %s\n' % parameter_file
+            self.__logger.ftlog_print(
+                "Writing parameter file %s\n\n" % parameter_file)
             self.__flash_image_file(0x00000000, PART_BLOCKSIZE, filename)
 
     def rk_backup_parameter(self, parameter_file):
-        print 'Backuping parameter to file %s' % parameter_file
+        self.__logger.ftlog_print(
+            "Backuping parameter to file %s\n" % parameter_file)
 
         with io.BytesIO() as filename:
             self.read_partition(0x00000000, PART_BLOCKSIZE, filename)
@@ -326,17 +332,19 @@ class RkOperation(object):
             with open(parameter_file, 'wb') as filename:
                 filename.write(data)
         else:
-            print 'Invalid parameter file!'
+            self.__logger.ftlog_error("Invalid parameter file!\n")
 
     def rk_erase_partition(self, offset, size):
         self.__init_device()
 
-        print 'Erasing partition 0x%08X@0x%08X' % (size, offset)
+        self.__logger.ftlog_print(
+            "Erasing partition 0x%08X@0x%08X\n" % (size, offset))
 
         # write the storage with empty 0xFF
         buf = ''.join([chr(0xFF)] * RKFT_BLOCKSIZE)
         while size > 0:
-            print 'erasing flash memory at offset 0x%08X' % offset
+            self.__logger.ftlog_print(
+                "erasing flash memory at offset 0x%08X\n" % offset)
 
             self.__dev_handle.bulkWrite(self.EP_OUT,
                                         ''.join(prepare_cmd(0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
