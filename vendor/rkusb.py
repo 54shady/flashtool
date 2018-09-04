@@ -54,7 +54,7 @@ def is_rk_device(device):
 def findout_rk_device(device, device_uids, device_list):
     if is_rk_device(device):
         dev_uid = '%d:%d' % (device.getBusNumber(),
-                device.getDeviceAddress())
+                             device.getDeviceAddress())
         device_uids.add(dev_uid)
         device_list.append(
             (device.getBusNumber(),
@@ -191,3 +191,35 @@ class RkOperation(object):
                 break
 
         return partitions
+
+    def flash_image_file(self, offset, size, file_name):
+        self.__init_device()
+        print 'Starting flash %s' % file_name
+        with open(file_name) as filename:
+            self.__flash_image_file(offset, size, filename)
+
+        print 'Flash Done'
+
+    def __flash_image_file(self, offset, size, filename):
+        self.__init_device()
+        while size > 0:
+            block = filename.read(RKFT_BLOCKSIZE)
+            if not block:
+                break
+            buf = bytearray(RKFT_BLOCKSIZE)
+            buf[:len(block)] = block
+
+            self.__dev_handle.bulkWrite(self.EP_OUT,
+                                        ''.join(prepare_cmd(0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
+            self.__dev_handle.bulkWrite(self.EP_OUT, str(buf))
+            self.__dev_handle.bulkRead(self.EP_IN, 13)
+
+            offset += RKFT_OFF_INCR
+            size -= RKFT_OFF_INCR
+
+    def rk_reboot(self):
+        self.__init_device()
+        self.__dev_handle.bulkWrite(self.EP_OUT,
+                                    ''.join(prepare_cmd(0x00, 0x0006ff00, 0x00000000, 0x00)))
+        self.__dev_handle.bulkRead(self.EP_IN, 13)
+        print 'Rebooting device'
