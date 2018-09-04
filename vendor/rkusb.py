@@ -120,6 +120,9 @@ class RkOperation(object):
         self.__context = protocol.USBContext()
         self.__context.setDebug(3)
 
+        # for image flash check, default True
+        self.integrity = True
+
         # get the devices
         devices = self.__context.getDeviceList()
 
@@ -196,11 +199,57 @@ class RkOperation(object):
 
     def flash_image_file(self, offset, size, file_name):
         self.__init_device()
+        original_offset, original_size = offset, size
+
         print 'Starting flash %s' % file_name
         with open(file_name) as filename:
             self.__flash_image_file(offset, size, filename)
 
+        self.cmp_part_with_file(original_offset, original_size, file_name)
         print 'Flash Done'
+
+    def cmp_part_with_file(self, offset, size, file_name):
+        print 'Checking image on disk...'
+        with open(file_name) as filename:
+            ret = self.__cmp_part_with_file(offset, size, filename)
+            if not ret:
+                print 'Integrity check Error'
+            else:
+                print 'Integrity check Successfully'
+
+    def __cmp_part_with_file(self, offset, size, filename):
+        while size > 0:
+            # read the image file as block1
+            block1 = filename.read(RKFT_BLOCKSIZE)
+
+            # read the image on disk as block2
+            self.__dev_handle.bulkWrite(self.EP_OUT,
+                                        ''.join(prepare_cmd(0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
+            block2 = self.__dev_handle.bulkRead(self.EP_IN,
+                                                RKFT_BLOCKSIZE)
+            self.__dev_handle.bulkRead(self.EP_IN, 13)
+
+            # check length first
+            if len(block1) == len(block2):
+                if block1 != block2:
+                    #print 'Flash at 0x%08X is differnt from file!' % offset
+                    self.integrity = False
+            # we got some same data
+            else:
+                # endof the block1
+                if len(block1) == 0:
+                    break
+
+                # compare the same length of data
+                block2 = block2[:len(block1)]
+                if block1 != block2:
+                    #print 'Flash at 0x%08X is differnt from file!' % offset
+                    self.integrity = False
+
+            offset += RKFT_OFF_INCR
+            size -= RKFT_OFF_INCR
+
+        return self.integrity
 
     def __flash_image_file(self, offset, size, filename):
         self.__init_device()

@@ -79,12 +79,20 @@ class CliMain(object):
                          or args[0].startswith("0x")):
                     self.flash_image(args[0], args[1])
                     args = args[2:]
+            elif args[0] == "cmp":
+                self.compare_imagefile(args[1], args[2])
+                args = args[3:]
             elif args[0] == "reboot":
                 self.reboot_device()
                 break
             else:
                 self.usage()
                 raise RuntimeError("Unknown command: %s", args[0])
+
+    def compare_imagefile(self, part_name, image_file):
+        offset, size = self.get_partition(part_name)
+        with self.get_operation() as op:
+            op.cmp_part_with_file(offset, size, image_file)
 
     def reboot_device(self):
         with self.get_operation() as op:
@@ -104,7 +112,7 @@ class CliMain(object):
             partitions = self.PARTITION_PATTERN.findall(part_name)
             if len(partitions) != 1:
                 raise ValueError('Invalid partition %s' % part_name)
-            print partitions
+            #print partitions
             return (int(partitions[0][1], 16),
                     int(partitions[0][0], 16))
         else:
@@ -125,7 +133,13 @@ class CliMain(object):
         for size, offset, name in loaded_partitions:
             partitions[name] = (offset, size)
         self.partitions = partitions
-        print self.partitions
+        #print self.partitions
+        print '=' * 45
+        print "Partition table format(name : offset@size)"
+        for k in self.partitions:
+            print '%s : %d@%d' % (
+                k, self.partitions[k][0], self.partitions[k][1])
+        print '=' * 45
 
     def get_rkoperation(self):
         assert self.bus_id and self.dev_id
