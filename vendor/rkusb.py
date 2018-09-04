@@ -327,3 +327,21 @@ class RkOperation(object):
                 filename.write(data)
         else:
             print 'Invalid parameter file!'
+
+    def rk_erase_partition(self, offset, size):
+        self.__init_device()
+
+        print 'Erasing partition 0x%08X@0x%08X' % (size, offset)
+
+        # write the storage with empty 0xFF
+        buf = ''.join([chr(0xFF)] * RKFT_BLOCKSIZE)
+        while size > 0:
+            print 'erasing flash memory at offset 0x%08X' % offset
+
+            self.__dev_handle.bulkWrite(self.EP_OUT,
+                                        ''.join(prepare_cmd(0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
+            self.__dev_handle.bulkWrite(self.EP_OUT, buf)
+            self.__dev_handle.bulkRead(self.EP_IN, 13)
+
+            offset += RKFT_OFF_INCR
+            size -= RKFT_OFF_INCR

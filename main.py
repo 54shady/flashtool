@@ -5,15 +5,15 @@
 Usage: <cmd> [args] [<cmd> [args]...]
 
 part                              List partition
-flash @<PARTITION> <IMAGE FILE>   Flash partition with image file
+write @<PARTITION> <IMAGE FILE>   Write partition with image file
 cmp @<PARTITION> <IMAGE FILE>     Compare partition with image file
-backup @<PARTITION> <IMAGE FILE>  Backup partition to image file
-erase  @<PARTITION>               Erase partition
+read @<PARTITION> <IMAGE FILE>    Read partition to image file
+erase @<PARTITION>                Erase partition
 reboot                            Reboot device
 
 For example, flash device with boot.img and kernel.img, then reboot:
 
-sudo rkflashkit flash @boot boot.img @kernel.img kernel.img reboot
+python run.py write @boot boot.img @kernel.img kernel.img reboot
 """
 
 import time
@@ -60,7 +60,7 @@ class CliMain(object):
 
     def main(self, args):
         if args[0] in ("help", "-h", "--help"):
-            self.__usage()
+            self.usage()
             return 0
 
         dev = wait_for_one_device()
@@ -72,26 +72,38 @@ class CliMain(object):
         while args:
             if args[0] == "part":
                 self.load_partitions()
+                # support multiple command in one line
                 args = args[1:]
-            elif args[0] == "flash":
+            elif args[0] == "write":
                 args = args[1:]
                 while len(args) >= 2 \
                     and (args[0].startswith("@")
                          or args[0].startswith("0x")):
                     self.flash_image(args[0], args[1])
+                    # support multiple command in one line
                     args = args[2:]
             elif args[0] == "cmp":
                 self.compare_imagefile(args[1], args[2])
+                # support multiple command in one line
                 args = args[3:]
-            elif args[0] == "backup":
+            elif args[0] == "read":
                 self.backup_partition(args[1], args[2])
+                # support multiple command in one line
                 args = args[3:]
+            elif args[0] == "erase":
+                self.erase_partition(args[1])
+                args = args[2:]
             elif args[0] == "reboot":
                 self.reboot_device()
                 break
             else:
                 self.usage()
-                raise RuntimeError("Unknown command: %s", args[0])
+                break
+
+    def erase_partition(self, part_name):
+        offset, size = self.get_partition(part_name)
+        with self.get_operation() as op:
+            op.rk_erase_partition(offset, size)
 
     def backup_partition(self, part_name, image_file):
         with self.get_operation() as op:
@@ -164,5 +176,5 @@ class CliMain(object):
         assert self.bus_id and self.dev_id
         return RkOperation(self.bus_id, self.dev_id)
 
-    def __usage(self):
+    def usage(self):
         print __doc__
