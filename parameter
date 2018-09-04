@@ -1,0 +1,11 @@
+FIRMWARE_VER:6.0.0
+MACHINE_MODEL:rk3288
+MACHINE_ID:007
+MANUFACTURER:RK3288
+MAGIC: 0x5041524B
+ATAG: 0x60000800
+MACHINE: 3288
+CHECK_MASK: 0x80
+PWR_HLD: 0,0,A,0,1
+CMDLINE:console=ttyFIQ0 androidboot.selinux=disabled androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 mtdparts=rk29xxnand:0x2000@0x2000(uboot),0x2000@0x4000(misc),0x20000@0x6000(boot),0x20000@0x26000(recovery),0xa000@0x46000(backup),0x12C000@0x50000(cache),0x2000@0x17C000(kpanic),0x214000@0x17E000(system),0x8000@0x392000(metadata),0x200000@0x39A000(user),0x20000@0x59A000(radical_update),0x2000@0x5BA000(cfg),0x2000@0x5BC000(sp),0x4000@0x5BE000(pri),0x4000@0x5C2000(ext),-@0x5C6000(userdata)
+# in section; per section 512(0x200) bytes
