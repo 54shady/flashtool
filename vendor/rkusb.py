@@ -51,7 +51,19 @@ def is_rk_device(device):
             device.getProductID() in RK_PRODUCT_IDS)
 
 
-def list_devices():
+def findout_rk_device(device, device_uids, device_list):
+    if is_rk_device(device):
+        dev_uid = '%d:%d' % (device.getBusNumber(),
+                device.getDeviceAddress())
+        device_uids.add(dev_uid)
+        device_list.append(
+            (device.getBusNumber(),
+             device.getDeviceAddress(),
+             device.getVendorID(),
+             device.getProductID()))
+
+
+def list_rk_devices():
     device_uids = set([])
     device_list = []
 
@@ -61,15 +73,7 @@ def list_devices():
         context.setDebug(3)
         devices = context.getDeviceList()
         for device in devices:
-            if is_rk_device(device):
-                dev_uid = '%d:%d' % (device.getBusNumber(),
-                                     device.getDeviceAddress())
-                device_uids.add(dev_uid)
-                device_list.append(
-                    (device.getBusNumber(),
-                     device.getDeviceAddress(),
-                     device.getVendorID(),
-                     device.getProductID()))
+            findout_rk_device(device, device_uids, device_list)
     finally:
         if context:
             del context

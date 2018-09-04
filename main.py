@@ -17,12 +17,12 @@ sudo rkflashkit flash @boot boot.img @kernel.img kernel.img reboot
 """
 
 import time
-from vendor.rkusb import list_devices, RkOperation
+from vendor.rkusb import list_rk_devices, RkOperation
 
 
 def get_devices():
     devices = []
-    device_uids, device_list = list_devices()
+    device_uids, device_list = list_rk_devices()
     for bus_id, dev_id, vendor_id, prod_id in device_list:
         dev_name = '0x%04x:0x%04x' % (vendor_id, prod_id)
         devices.append((dev_name, (bus_id, dev_id, vendor_id, prod_id)))
