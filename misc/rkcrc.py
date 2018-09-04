@@ -3,6 +3,7 @@
 # coding=utf-8
 
 import struct
+import io
 
 table = [
     0x00000000, 0x04c10db7, 0x09821b6e, 0x0d4316d9,
@@ -96,3 +97,14 @@ def make_parameter_image(parameter_file_data):
     # CRC
     buf.extend(struct.pack("<L", rkcrc(parameter_file_data)))
     return buf
+
+def verify_parameter_image(parameter_img_data):
+    with io.BytesIO(parameter_img_data) as filename:
+        tag = filename.read(4)
+        if tag == "PARM":
+            length = struct.unpack("<L", filename.read(4))[0]
+            data = filename.read(length)
+            if len(data) == length:
+                crc = rkcrc(data)
+                if crc == struct.unpack("<L", filename.read(4))[0]:
+                    return data

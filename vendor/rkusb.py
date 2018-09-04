@@ -197,7 +197,34 @@ class RkOperation(object):
 
         return partitions
 
-    def flash_image_file(self, offset, size, file_name):
+    def rk_backup_partition(self, offset, size, file_name):
+        self.__init_device()
+
+        # open the file for writing
+        with open(file_name, 'w') as filename:
+            self.read_partition(offset, size, filename)
+
+        # Verify backup.
+        self.cmp_part_with_file(offset, size, file_name)
+
+    def read_partition(self, offset, size, filename):
+        while size > 0:
+            print 'reading flash memory at offset 0x%08X' % offset
+
+            self.__dev_handle.bulkWrite(self.EP_OUT,
+                                        ''.join(prepare_cmd(0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
+            block = self.__dev_handle.bulkRead(
+                self.EP_IN, RKFT_BLOCKSIZE)
+            self.__dev_handle.bulkRead(self.EP_IN, 13)
+            if size < RKFT_BLOCKSIZE and len(block) < size:
+                block = block[:size]
+            if block:
+                filename.write(block)
+
+            offset += RKFT_OFF_INCR
+            size -= RKFT_OFF_INCR
+
+    def write_partition(self, offset, size, file_name):
         self.__init_device()
         original_offset, original_size = offset, size
 
@@ -209,6 +236,10 @@ class RkOperation(object):
         print 'Flash Done'
 
     def cmp_part_with_file(self, offset, size, file_name):
+        '''
+        Compare the image file with local copy
+        file_name : local file name
+        '''
         print 'Checking image on disk...'
         with open(file_name) as filename:
             ret = self.__cmp_part_with_file(offset, size, filename)
@@ -283,3 +314,16 @@ class RkOperation(object):
         with io.BytesIO(buf) as filename:
             print 'Writing parameter file %s\n' % parameter_file
             self.__flash_image_file(0x00000000, PART_BLOCKSIZE, filename)
+
+    def rk_backup_parameter(self, parameter_file):
+        print 'Backuping parameter to file %s' % parameter_file
+
+        with io.BytesIO() as filename:
+            self.read_partition(0x00000000, PART_BLOCKSIZE, filename)
+            data = filename.getvalue()
+        data = RKCRC.verify_parameter_image(data)
+        if data:
+            with open(parameter_file, 'wb') as filename:
+                filename.write(data)
+        else:
+            print 'Invalid parameter file!'

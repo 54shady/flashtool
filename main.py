@@ -19,6 +19,7 @@ sudo rkflashkit flash @boot boot.img @kernel.img kernel.img reboot
 import time
 from vendor.rkusb import list_rk_devices, RkOperation
 import re
+import sys
 
 
 def get_devices():
@@ -82,12 +83,23 @@ class CliMain(object):
             elif args[0] == "cmp":
                 self.compare_imagefile(args[1], args[2])
                 args = args[3:]
+            elif args[0] == "backup":
+                self.backup_partition(args[1], args[2])
+                args = args[3:]
             elif args[0] == "reboot":
                 self.reboot_device()
                 break
             else:
                 self.usage()
                 raise RuntimeError("Unknown command: %s", args[0])
+
+    def backup_partition(self, part_name, image_file):
+        with self.get_operation() as op:
+            if part_name == '@parameter':
+                op.rk_backup_parameter(image_file)
+            else:
+                offset, size = self.get_partition(part_name)
+                op.rk_backup_partition(offset, size, image_file)
 
     def compare_imagefile(self, part_name, image_file):
         offset, size = self.get_partition(part_name)
@@ -104,7 +116,7 @@ class CliMain(object):
                 op.flash_rk_parameter(image_file)
             else:
                 offset, size = self.get_partition(part_name)
-                op.flash_image_file(offset, size, image_file)
+                op.write_partition(offset, size, image_file)
 
     def get_partition(self, part_name):
         if part_name.startswith('0x'):
@@ -120,11 +132,23 @@ class CliMain(object):
                 part_name = part_name[1:]
             if not self.partitions:
                 self.load_partitions()
-            return self.partitions[part_name]  # (offset, size)
+            try:
+                return self.partitions[part_name]  # (offset, size)
+            except KeyError:
+                print 'ERROR : %s is not in partition table' % part_name
+                sys.exit(-1)
 
     def get_operation(self):
         with self.get_rkoperation() as op:
             return op
+
+    def print_partitions(self):
+        print '=' * 45
+        print "Partition table format(name : offset@size)"
+        for k in self.partitions:
+            print '%s : %d@%d' % (
+                k, self.partitions[k][0], self.partitions[k][1])
+        print '=' * 45
 
     def load_partitions(self):
         partitions = {}
@@ -134,12 +158,7 @@ class CliMain(object):
             partitions[name] = (offset, size)
         self.partitions = partitions
         #print self.partitions
-        print '=' * 45
-        print "Partition table format(name : offset@size)"
-        for k in self.partitions:
-            print '%s : %d@%d' % (
-                k, self.partitions[k][0], self.partitions[k][1])
-        print '=' * 45
+        self.print_partitions()
 
     def get_rkoperation(self):
         assert self.bus_id and self.dev_id
