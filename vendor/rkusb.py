@@ -8,6 +8,7 @@ import protocol
 import time
 import misc.rkcrc as RKCRC
 
+USB_BULK_READ_SIZE = 512
 PART_BLOCKSIZE = 0x800  # must be multiple of 512
 PART_OFF_INCR = PART_BLOCKSIZE >> 9
 RKFT_BLOCKSIZE = 0x4000  # must be multiple of 512
@@ -83,35 +84,62 @@ def list_rk_devices():
     return (device_uids, device_list)
 
 
+# generate a unique id
 def next_cmd_id():
     global global_cmd_id
     global_cmd_id = (global_cmd_id + 1) & 0xFF
     return chr(global_cmd_id)
 
 
-RKFT_CID = 4
-RKFT_FLAG = 12
-RKFT_COMMAND = 13
-RKFT_OFFSET = 17
-RKFT_SIZE = 23
-USB_CMD = [chr(0)] * 31
-USB_CMD[0:4] = 'USBC'
+'''
+/* command block wrapper */
+struct bulk_cb_wrap {
+	__le32	Signature;		/* contains 'USBC' */
+	__u32	Tag;			/* unique per command id */
+	__le32	DataTransferLength;	/* size of data */
+	__u8	Flags;			/* direction in bit 0 */
+	__u8	Lun;			/* LUN normally 0 */
+	__u8	Length;			/* of of the CDB */
+	__u8	CDB[16];		/* max command */
+};
+
+/* command status wrapper */
+struct bulk_cs_wrap {
+	__le32	Signature;	/* should = 'USBS' */
+	__u32	Tag;		/* same as original command */
+	__le32	Residue;	/* amount not transferred */
+	__u8	Status;		/* see below */
+};
+'''
+CBW_TAG = 4
+CBW_FLAG = 12
+CBW_LUN = 13
+CBW_LENGTH = 14
+CBW_CDB0 = 15
+CBW_CDB1 = 16
+CBW_OFFSET = 17
+CBW_SIZE = 23
+BULK_CBW = [chr(0)] * 31
+BULK_CBW[0:4] = 'USBC'
 global_cmd_id = -1
+BULK_CS_WRAP_LEN = 13  # struct bulk_cs_wrap 13 bytes
+
+# command block wrapper
 
 
-def prepare_cmd(flag, command, offset, size):
-    USB_CMD[RKFT_CID] = next_cmd_id()
-    USB_CMD[RKFT_FLAG] = chr(flag)
-    USB_CMD[RKFT_SIZE] = chr(size)
-    USB_CMD[RKFT_COMMAND] = chr((command >> 24) & 0xFF)
-    USB_CMD[RKFT_COMMAND + 1] = chr((command >> 16) & 0xFF)
-    USB_CMD[RKFT_COMMAND + 2] = chr((command >> 8) & 0xFF)
-    USB_CMD[RKFT_COMMAND + 3] = chr((command) & 0xFF)
-    USB_CMD[RKFT_OFFSET] = chr((offset >> 24) & 0xFF)
-    USB_CMD[RKFT_OFFSET + 1] = chr((offset >> 16) & 0xFF)
-    USB_CMD[RKFT_OFFSET + 2] = chr((offset >> 8) & 0xFF)
-    USB_CMD[RKFT_OFFSET + 3] = chr((offset) & 0xFF)
-    return USB_CMD
+def bulk_cb_wrap(flag, command, offset, size):
+    BULK_CBW[CBW_TAG] = next_cmd_id()
+    BULK_CBW[CBW_FLAG] = chr(flag)
+    BULK_CBW[CBW_SIZE] = chr(size)
+    BULK_CBW[CBW_LUN] = chr((command >> 24) & 0xFF)
+    BULK_CBW[CBW_LENGTH] = chr((command >> 16) & 0xFF)
+    BULK_CBW[CBW_CDB0] = chr((command >> 8) & 0xFF)
+    BULK_CBW[CBW_CDB1] = chr((command) & 0xFF)
+    BULK_CBW[CBW_OFFSET] = chr((offset >> 24) & 0xFF)
+    BULK_CBW[CBW_OFFSET + 1] = chr((offset >> 16) & 0xFF)
+    BULK_CBW[CBW_OFFSET + 2] = chr((offset >> 8) & 0xFF)
+    BULK_CBW[CBW_OFFSET + 3] = chr((offset) & 0xFF)
+    return BULK_CBW
 
 
 class RkOperation(object):
@@ -152,9 +180,9 @@ class RkOperation(object):
 
     def rk_device_init(self):
         # Init
-        self.__dev_handle.bulkWrite(self.EP_OUT,
-                                    ''.join(prepare_cmd(0x80, 0x00060000, 0x00000000, 0x00000000)))
-        self.__dev_handle.bulkRead(self.EP_IN, 13)
+        self.send_cbw(''.join(bulk_cb_wrap(
+            0x80, 0x00060000, 0x00000000, 0x00000000)))
+        self.recv_csw()
 
     def __init_device(self):
         if self.__dev_handle.kernelDriverActive(0):
@@ -170,19 +198,18 @@ class RkOperation(object):
         partitions = []
         self.__init_device()
 
-        self.__dev_handle.bulkWrite(self.EP_OUT,
-                                    ''.join(prepare_cmd(0x80, 0x00061a00, 0x00000000, 0x00000000)))
+        self.send_cbw(''.join(bulk_cb_wrap(
+            0x80, 0x00061a00, 0x00000000, 0x00000000)))
+        content = self.send_or_recv_data(data_len=USB_BULK_READ_SIZE)
+        self.recv_csw()
 
-        content = self.__dev_handle.bulkRead(self.EP_IN, 512)
-        self.__dev_handle.bulkRead(self.EP_IN, 13)
         flash_size = (ord(content[0])) | (ord(content[1]) << 8) | (
             ord(content[2]) << 16) | (ord(content[3]) << 24)
 
-        self.__dev_handle.bulkWrite(self.EP_OUT,
-                                    ''.join(prepare_cmd(0x80, 0x000a1400, 0x00000000, PART_OFF_INCR)))
-
-        content = self.__dev_handle.bulkRead(self.EP_IN, PART_BLOCKSIZE)
-        self.__dev_handle.bulkRead(self.EP_IN, 13)
+        self.send_cbw(''.join(bulk_cb_wrap(
+            0x80, 0x000a1400, 0x00000000, PART_OFF_INCR)))
+        content = self.send_or_recv_data(data_len=PART_BLOCKSIZE)
+        self.recv_csw()
 
         for line in content.split('\n'):
             if line.startswith('CMDLINE:'):
@@ -203,21 +230,42 @@ class RkOperation(object):
 
         # open the file for writing
         with open(file_name, 'w') as filename:
-            self.read_partition(offset, size, filename)
+            self.rk_usb_read(offset, size, filename)
 
         # Verify backup.
         self.cmp_part_with_file(offset, size, file_name)
 
-    def read_partition(self, offset, size, filename):
+    def send_cbw(self, cbw):
+        '''
+        data direction from host to slave
+        endpoint is EP_OUT
+        '''
+        self.__dev_handle.bulkWrite(self.EP_OUT, cbw)
+
+    def send_or_recv_data(self, data_len=0, data=None):
+        '''
+        if there is data, means send
+        # no data, means recv
+        '''
+
+        if data:
+            self.__dev_handle.bulkWrite(self.EP_OUT, data)
+        else:
+            return self.__dev_handle.bulkRead(self.EP_IN, data_len)
+
+    def recv_csw(self, csw=None):
+        self.__dev_handle.bulkRead(self.EP_IN, BULK_CS_WRAP_LEN)
+
+    def rk_usb_read(self, offset, size, filename):
         while size > 0:
             self.__logger.ftlog_print(
                 "reading flash memory at offset 0x%08X\n" % offset)
 
-            self.__dev_handle.bulkWrite(self.EP_OUT,
-                                        ''.join(prepare_cmd(0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
-            block = self.__dev_handle.bulkRead(
-                self.EP_IN, RKFT_BLOCKSIZE)
-            self.__dev_handle.bulkRead(self.EP_IN, 13)
+            self.send_cbw(''.join(bulk_cb_wrap(
+                0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
+            block = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
+            self.recv_csw()
+
             if size < RKFT_BLOCKSIZE and len(block) < size:
                 block = block[:size]
             if block:
@@ -226,14 +274,14 @@ class RkOperation(object):
             offset += RKFT_OFF_INCR
             size -= RKFT_OFF_INCR
 
-    def write_partition(self, offset, size, file_name):
+    def rk_write_partition(self, offset, size, file_name):
         self.__init_device()
         original_offset, original_size = offset, size
 
         self.__logger.ftlog_dividor()
         self.__logger.ftlog_print("Starting flash %s\n" % file_name)
         with open(file_name) as filename:
-            self.__flash_image_file(offset, size, filename)
+            self.rk_usb_write(offset, size, filename)
 
         self.cmp_part_with_file(original_offset, original_size, file_name)
         self.__logger.ftlog_nice("Done")
@@ -258,11 +306,10 @@ class RkOperation(object):
             block1 = filename.read(RKFT_BLOCKSIZE)
 
             # read the image on disk as block2
-            self.__dev_handle.bulkWrite(self.EP_OUT,
-                                        ''.join(prepare_cmd(0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
-            block2 = self.__dev_handle.bulkRead(self.EP_IN,
-                                                RKFT_BLOCKSIZE)
-            self.__dev_handle.bulkRead(self.EP_IN, 13)
+            self.send_cbw(''.join(bulk_cb_wrap(
+                0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
+            block2 = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
+            self.recv_csw()
 
             # check length first
             if len(block1) == len(block2):
@@ -286,31 +333,34 @@ class RkOperation(object):
 
         return self.integrity
 
-    def __flash_image_file(self, offset, size, filename):
+    def rk_usb_write(self, offset, size, filename):
         self.__init_device()
         while size > 0:
+            self.__logger.ftlog_print(
+                "writing flash memory at offset 0x%08X\n" % offset)
+
             block = filename.read(RKFT_BLOCKSIZE)
             if not block:
                 break
             buf = bytearray(RKFT_BLOCKSIZE)
             buf[:len(block)] = block
 
-            self.__dev_handle.bulkWrite(self.EP_OUT,
-                                        ''.join(prepare_cmd(0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
-            self.__dev_handle.bulkWrite(self.EP_OUT, str(buf))
-            self.__dev_handle.bulkRead(self.EP_IN, 13)
+            self.send_cbw(''.join(bulk_cb_wrap(
+                0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
+            self.send_or_recv_data(data=str(buf))
+            self.recv_csw()
 
             offset += RKFT_OFF_INCR
             size -= RKFT_OFF_INCR
 
     def rk_reboot(self):
         self.__init_device()
-        self.__dev_handle.bulkWrite(self.EP_OUT,
-                                    ''.join(prepare_cmd(0x00, 0x0006ff00, 0x00000000, 0x00)))
-        self.__dev_handle.bulkRead(self.EP_IN, 13)
+        self.send_cbw(''.join(bulk_cb_wrap(
+            0x00, 0x0006ff00, 0x00000000, 0x00)))
+        self.recv_csw()
         self.__logger.ftlog_print("Rebooting device\n")
 
-    def flash_rk_parameter(self, parameter_file):
+    def rk_write_parameter(self, parameter_file):
         with open(parameter_file) as filename:
             data = filename.read()
             buf = RKCRC.make_parameter_image(data)
@@ -318,14 +368,14 @@ class RkOperation(object):
         with io.BytesIO(buf) as filename:
             self.__logger.ftlog_print(
                 "Writing parameter file %s\n\n" % parameter_file)
-            self.__flash_image_file(0x00000000, PART_BLOCKSIZE, filename)
+            self.rk_usb_write(0x00000000, PART_BLOCKSIZE, filename)
 
     def rk_backup_parameter(self, parameter_file):
         self.__logger.ftlog_print(
             "Backuping parameter to file %s\n" % parameter_file)
 
         with io.BytesIO() as filename:
-            self.read_partition(0x00000000, PART_BLOCKSIZE, filename)
+            self.rk_usb_read(0x00000000, PART_BLOCKSIZE, filename)
             data = filename.getvalue()
         data = RKCRC.verify_parameter_image(data)
         if data:
@@ -346,10 +396,10 @@ class RkOperation(object):
             self.__logger.ftlog_print(
                 "erasing flash memory at offset 0x%08X\n" % offset)
 
-            self.__dev_handle.bulkWrite(self.EP_OUT,
-                                        ''.join(prepare_cmd(0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
-            self.__dev_handle.bulkWrite(self.EP_OUT, buf)
-            self.__dev_handle.bulkRead(self.EP_IN, 13)
+            self.send_cbw(''.join(bulk_cb_wrap(
+                0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
+            self.send_or_recv_data(data=buf)
+            self.recv_csw()
 
             offset += RKFT_OFF_INCR
             size -= RKFT_OFF_INCR

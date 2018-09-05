@@ -131,7 +131,7 @@ class FlashTool(object):
                 while len(args) >= 2 \
                     and (args[0].startswith("@")
                          or args[0].startswith("0x")):
-                    self.flash_image(args[0], args[1])
+                    self.write_image(args[0], args[1])
                     # support multiple command in one line
                     args = args[2:]
             elif args[0] == "cmp":
@@ -174,13 +174,13 @@ class FlashTool(object):
         with self.get_operation() as op:
             op.rk_reboot()
 
-    def flash_image(self, part_name, image_file):
+    def write_image(self, part_name, image_file):
         with self.get_operation() as op:
             if part_name == '@parameter':
-                op.flash_rk_parameter(image_file)
+                op.rk_write_parameter(image_file)
             else:
                 offset, size = self.get_partition(part_name)
-                op.write_partition(offset, size, image_file)
+                op.rk_write_partition(offset, size, image_file)
 
     def get_partition(self, part_name):
         if part_name.startswith('0x'):
