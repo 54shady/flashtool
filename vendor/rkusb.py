@@ -179,6 +179,7 @@ def bulk_cb_wrap(flag, command, offset=0, size=0):
     '''
     rkusb command block wrapper
     flag : read or write
+    command : rkusb command id
     '''
     BULK_CBW[CBW_TAG] = next_cmd_id()
     BULK_CBW[CBW_FLAG] = chr(flag)
@@ -420,7 +421,7 @@ class RkOperation(object):
             buf[:len(block)] = block
 
             self.send_cbw(''.join(bulk_cb_wrap(
-                DIRECTION_IN, WRITE_LBA, offset, RKFT_OFF_INCR)))
+                DIRECTION_OUT, WRITE_LBA, offset, RKFT_OFF_INCR)))
             self.send_or_recv_data(data=str(buf))
             self.recv_csw()
 
