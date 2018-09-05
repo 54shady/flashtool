@@ -139,7 +139,7 @@ class FlashTool(object):
                 # support multiple command in one line
                 args = args[3:]
             elif args[0] == "read":
-                self.backup_partition(args[1], args[2])
+                self.read_image(args[1], args[2])
                 # support multiple command in one line
                 args = args[3:]
             elif args[0] == "erase":
@@ -157,13 +157,13 @@ class FlashTool(object):
         with self.get_operation() as op:
             op.rk_erase_partition(offset, size)
 
-    def backup_partition(self, part_name, image_file):
+    def read_image(self, part_name, image_file):
         with self.get_operation() as op:
             if part_name == '@parameter':
-                op.rk_backup_parameter(image_file)
+                op.rk_read_parameter(image_file)
             else:
                 offset, size = self.get_partition(part_name)
-                op.rk_backup_partition(offset, size, image_file)
+                op.rk_read_partition(offset, size, image_file)
 
     def compare_imagefile(self, part_name, image_file):
         offset, size = self.get_partition(part_name)

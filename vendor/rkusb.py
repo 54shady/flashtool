@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 # coding=utf-8
 
 import io
@@ -188,25 +189,25 @@ class RkOperation(object):
     def __exit__(self, *args):
         del self  # self = None
 
-    def rk_device_init(self):
+    def __rk_device_init(self):
         # Init
         self.send_cbw(''.join(bulk_cb_wrap(
             0x80, 0x00060000, 0x00000000, 0x00000000)))
         self.recv_csw()
 
-    def __init_device(self):
+    def init_device(self):
         if self.__dev_handle.kernelDriverActive(0):
             self.__dev_handle.detachKernelDriver(0)
         self.__dev_handle.claimInterface(0)
 
-        self.rk_device_init()
+        self.__rk_device_init()
 
         # sleep for 20ms
         time.sleep(0.02)
 
     def rk_load_partitions(self):
         partitions = []
-        self.__init_device()
+        self.init_device()
 
         self.send_cbw(''.join(bulk_cb_wrap(
             0x80, 0x00061a00, 0x00000000, 0x00000000)))
@@ -235,8 +236,11 @@ class RkOperation(object):
 
         return partitions
 
-    def rk_backup_partition(self, offset, size, file_name):
-        self.__init_device()
+    def rk_read_partition(self, offset, size, file_name):
+        self.init_device()
+
+        self.__logger.ftlog_dividor()
+        self.__logger.ftlog_print("Starting read %s\n" % file_name)
 
         # open the file for writing
         with open(file_name, 'w') as filename:
@@ -245,11 +249,18 @@ class RkOperation(object):
         # Verify backup.
         self.cmp_part_with_file(offset, size, file_name)
 
+        self.__logger.ftlog_nice("Done")
+        self.__logger.ftlog_dividor()
+
+    def dump_str2hex(self, string_value):
+        return ' '.join(hex(x) for x in bytearray(string_value))
+
     def send_cbw(self, cbw):
         '''
         data direction from host to slave
         endpoint is EP_OUT
         '''
+        #print self.dump_str2hex(cbw)
         self.__dev_handle.bulkWrite(self.EP_OUT, cbw)
 
     def send_or_recv_data(self, data_len=0, data=None):
@@ -284,14 +295,15 @@ class RkOperation(object):
             size -= RKFT_OFF_INCR
 
     def rk_write_partition(self, offset, size, file_name):
-        self.__init_device()
+        self.init_device()
         original_offset, original_size = offset, size
 
         self.__logger.ftlog_dividor()
-        self.__logger.ftlog_print("Starting flash %s\n" % file_name)
+        self.__logger.ftlog_print("Starting write %s\n" % file_name)
         with open(file_name) as filename:
             self.rk_usb_write(offset, size, filename)
 
+        # Verify backup.
         self.cmp_part_with_file(original_offset, original_size, file_name)
         self.__logger.ftlog_nice("Done")
         self.__logger.ftlog_dividor()
@@ -345,7 +357,7 @@ class RkOperation(object):
         return self.integrity
 
     def rk_usb_write(self, offset, size, filename):
-        self.__init_device()
+        self.init_device()
         total = size
         while size > 0:
             show_process(total - size, total, 'Writing')
@@ -365,7 +377,7 @@ class RkOperation(object):
             size -= RKFT_OFF_INCR
 
     def rk_reboot(self):
-        self.__init_device()
+        self.init_device()
         self.send_cbw(''.join(bulk_cb_wrap(
             0x00, 0x0006ff00, 0x00000000, 0x00)))
         self.recv_csw()
@@ -381,7 +393,7 @@ class RkOperation(object):
                 "Writing parameter file %s\n\n" % parameter_file)
             self.rk_usb_write(0x00000000, PART_BLOCKSIZE, filename)
 
-    def rk_backup_parameter(self, parameter_file):
+    def rk_read_parameter(self, parameter_file):
         self.__logger.ftlog_print(
             "Backuping parameter to file %s\n" % parameter_file)
 
@@ -396,7 +408,7 @@ class RkOperation(object):
             self.__logger.ftlog_error("Invalid parameter file!\n")
 
     def rk_erase_partition(self, offset, size):
-        self.__init_device()
+        self.init_device()
 
         self.__logger.ftlog_print(
             "Erasing partition 0x%08X@0x%08X\n" % (size, offset))
