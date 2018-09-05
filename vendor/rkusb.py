@@ -7,6 +7,8 @@ import re
 import protocol
 import time
 import misc.rkcrc as RKCRC
+import sys
+
 
 USB_BULK_READ_SIZE = 512
 PART_BLOCKSIZE = 0x800  # must be multiple of 512
@@ -47,6 +49,14 @@ RK_DEVICE_ENDPOINTS = {
     0x320b: (0x01, 0x02),  # RK3229
     0x330c: (0x81, 0x01),  # RK3399
 }
+
+
+def show_process(current, total, message=''):
+    '''
+    ugly process bar, but this is what I got right now
+    '''
+    sys.stdout.write('{0} : {1}/{2}\r'.format(message, total - current, total))
+    sys.stdout.flush()
 
 
 def is_rk_device(device):
@@ -94,21 +104,21 @@ def next_cmd_id():
 '''
 /* command block wrapper */
 struct bulk_cb_wrap {
-	__le32	Signature;		/* contains 'USBC' */
-	__u32	Tag;			/* unique per command id */
-	__le32	DataTransferLength;	/* size of data */
-	__u8	Flags;			/* direction in bit 0 */
-	__u8	Lun;			/* LUN normally 0 */
-	__u8	Length;			/* of of the CDB */
-	__u8	CDB[16];		/* max command */
+    __le32  Signature;      /* contains 'USBC' */
+    __u32   Tag;            /* unique per command id */
+    __le32  DataTransferLength; /* size of data */
+    __u8    Flags;          /* direction in bit 0 */
+    __u8    Lun;            /* LUN normally 0 */
+    __u8    Length;         /* of of the CDB */
+    __u8    CDB[16];        /* max command */
 };
 
 /* command status wrapper */
 struct bulk_cs_wrap {
-	__le32	Signature;	/* should = 'USBS' */
-	__u32	Tag;		/* same as original command */
-	__le32	Residue;	/* amount not transferred */
-	__u8	Status;		/* see below */
+    __le32  Signature;  /* should = 'USBS' */
+    __u32   Tag;        /* same as original command */
+    __le32  Residue;    /* amount not transferred */
+    __u8    Status;     /* see below */
 };
 '''
 CBW_TAG = 4
@@ -247,7 +257,6 @@ class RkOperation(object):
         if there is data, means send
         # no data, means recv
         '''
-
         if data:
             self.__dev_handle.bulkWrite(self.EP_OUT, data)
         else:
@@ -257,9 +266,9 @@ class RkOperation(object):
         self.__dev_handle.bulkRead(self.EP_IN, BULK_CS_WRAP_LEN)
 
     def rk_usb_read(self, offset, size, filename):
+        total = size
         while size > 0:
-            self.__logger.ftlog_print(
-                "reading flash memory at offset 0x%08X\n" % offset)
+            show_process(total - size + 32, total, 'Reading')
 
             self.send_cbw(''.join(bulk_cb_wrap(
                 0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
@@ -292,16 +301,18 @@ class RkOperation(object):
         Compare the image file with local copy
         file_name : local file name
         '''
-        self.__logger.ftlog_print("Checking image on disk...\n")
         with open(file_name) as filename:
             ret = self.__cmp_part_with_file(offset, size, filename)
             if not ret:
-                self.__logger.ftlog_error("Integrity check Error\n")
+                self.__logger.ftlog_error("\nIntegrity check Error\n")
             else:
-                self.__logger.ftlog_nice("Integrity check Successfully\n")
+                self.__logger.ftlog_nice("\nIntegrity check Successfully\n")
 
     def __cmp_part_with_file(self, offset, size, filename):
+        total = size
         while size > 0:
+            show_process(size - 32, total, 'Checking image')
+
             # read the image file as block1
             block1 = filename.read(RKFT_BLOCKSIZE)
 
@@ -314,7 +325,7 @@ class RkOperation(object):
             # check length first
             if len(block1) == len(block2):
                 if block1 != block2:
-                    #self.__logger.ftlog_print("Flash at 0x%08X is differnt from file!\n" % offset)
+                    # self.__logger.ftlog_print("Flash at 0x%08X is differnt from file!\n" % offset)
                     self.integrity = False
             # we got some same data
             else:
@@ -325,7 +336,7 @@ class RkOperation(object):
                 # compare the same length of data
                 block2 = block2[:len(block1)]
                 if block1 != block2:
-                    #self.__logger.ftlog_print("Flash at 0x%08X is differnt from file!\n" % offset)
+                    # self.__logger.ftlog_print("Flash at 0x%08X is differnt from file!\n" % offset)
                     self.integrity = False
 
             offset += RKFT_OFF_INCR
@@ -335,9 +346,9 @@ class RkOperation(object):
 
     def rk_usb_write(self, offset, size, filename):
         self.__init_device()
+        total = size
         while size > 0:
-            self.__logger.ftlog_print(
-                "writing flash memory at offset 0x%08X\n" % offset)
+            show_process(total - size, total, 'Writing')
 
             block = filename.read(RKFT_BLOCKSIZE)
             if not block:
