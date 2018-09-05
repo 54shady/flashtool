@@ -127,30 +127,76 @@ CBW_FLAG = 12
 CBW_LUN = 13
 CBW_LENGTH = 14
 CBW_CDB0 = 15
-CBW_CDB1 = 16
 CBW_OFFSET = 17
-CBW_SIZE = 23
 BULK_CBW = [chr(0)] * 31
 BULK_CBW[0:4] = 'USBC'
 global_cmd_id = -1
 BULK_CS_WRAP_LEN = 13  # struct bulk_cs_wrap 13 bytes
 
+# rkusb command
+TEST_UNIT_READY = 0x0
+READ_FLASH_ID = 0x01
+TEST_BAD_BLOCK = 0x03
+READ_SECTOR = 0x04
+WRITE_SECTOR = 0x05
+ERASE_NORMAL = 0x06
+ERASE_FORCE = 0x0B
+READ_LBA = 0x14
+WRITE_LBA = 0x15
+ERASE_SYSTEMDISK = 0x16
+READ_SDRAM = 0x17
+WRITE_SDRAM = 0x18
+EXECUTE_SDRAM = 0x19
+READ_FLASH_INFO = 0x1A
+READ_CHIP_INFO = 0x1B
+SET_RESET_FLAG = 0x1E
+WRITE_EFUSE = 0x1F
+READ_EFUSE = 0x20
+READ_SPI_FLASH = 0x21
+WRITE_SPI_FLASH = 0x22
+WRITE_NEW_EFUSE = 0x23
+READ_NEW_EFUSE = 0x24
+ERASE_LBA = 0x25
+READ_CAPABILITY = 0xAA
+DEVICE_RESET = 0xFF
 
-def bulk_cb_wrap(flag, command, offset, size):
+DIRECTION_OUT = 0x00
+DIRECTION_IN = 0x80
+
+'''
+rkusb CDB(from rkdeveloptool)
+
+BYTE	ucOperCode; ==> CDB[0]
+BYTE	ucReserved; ==> CDB[1]
+DWORD	dwAddress;  ==> CDB[2:5]
+BYTE	ucReserved2; ==> CDB[6]
+USHORT	usLength; ==> CDB[7:8]
+BYTE	ucReserved3; CDB[9]
+'''
+
+
+def bulk_cb_wrap(flag, command, offset=0, size=0):
     '''
     rkusb command block wrapper
+    flag : read or write
     '''
     BULK_CBW[CBW_TAG] = next_cmd_id()
     BULK_CBW[CBW_FLAG] = chr(flag)
-    BULK_CBW[CBW_SIZE] = chr(size)
-    BULK_CBW[CBW_LUN] = chr((command >> 24) & 0xFF)
-    BULK_CBW[CBW_LENGTH] = chr((command >> 16) & 0xFF)
-    BULK_CBW[CBW_CDB0] = chr((command >> 8) & 0xFF)
-    BULK_CBW[CBW_CDB1] = chr((command) & 0xFF)
+    BULK_CBW[CBW_LUN] = chr(0)
+
+    # len of cdb data
+    BULK_CBW[CBW_LENGTH] = chr(0x8)
+
+    # 6 bytes cdb
+    BULK_CBW[CBW_CDB0] = chr(command)  # rkusb cmd
+    BULK_CBW[CBW_CDB0 + 1] = chr(0)  # reserved
     BULK_CBW[CBW_OFFSET] = chr((offset >> 24) & 0xFF)
     BULK_CBW[CBW_OFFSET + 1] = chr((offset >> 16) & 0xFF)
     BULK_CBW[CBW_OFFSET + 2] = chr((offset >> 8) & 0xFF)
     BULK_CBW[CBW_OFFSET + 3] = chr((offset) & 0xFF)
+
+    # the 8th byte of cdb
+    BULK_CBW[CBW_CDB0 + 8] = chr(size)
     return BULK_CBW
 
 
@@ -192,8 +238,7 @@ class RkOperation(object):
 
     def __rk_device_init(self):
         # Init
-        self.send_cbw(''.join(bulk_cb_wrap(
-            0x80, 0x00060000, 0x00000000, 0x00000000)))
+        self.send_cbw(''.join(bulk_cb_wrap(DIRECTION_IN, TEST_UNIT_READY)))
         self.recv_csw()
 
     def init_device(self):
@@ -210,8 +255,7 @@ class RkOperation(object):
         partitions = []
         self.init_device()
 
-        self.send_cbw(''.join(bulk_cb_wrap(
-            0x80, 0x00061a00, 0x00000000, 0x00000000)))
+        self.send_cbw(''.join(bulk_cb_wrap(DIRECTION_IN, READ_FLASH_INFO)))
         content = self.send_or_recv_data(data_len=USB_BULK_READ_SIZE)
         self.recv_csw()
 
@@ -219,7 +263,7 @@ class RkOperation(object):
             ord(content[2]) << 16) | (ord(content[3]) << 24)
 
         self.send_cbw(''.join(bulk_cb_wrap(
-            0x80, 0x000a1400, 0x00000000, PART_OFF_INCR)))
+            DIRECTION_IN, READ_LBA, size=PART_OFF_INCR)))
         content = self.send_or_recv_data(data_len=PART_BLOCKSIZE)
         self.recv_csw()
 
@@ -267,6 +311,7 @@ class RkOperation(object):
         the CDB[0] will decide the command in rkusb protocol
         '''
         #print '\nCDB[0] : ' + self.dump_str2hex(cbw[15]) + '\n'
+        #print '\n' + self.dump_str2hex(cbw[12:16]) + '\n'
         self.__dev_handle.bulkWrite(self.EP_OUT, cbw)
 
     def send_or_recv_data(self, data_len=0, data=None):
@@ -288,7 +333,7 @@ class RkOperation(object):
             show_process(total - size + 32, total, 'Reading')
 
             self.send_cbw(''.join(bulk_cb_wrap(
-                0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
+                DIRECTION_IN, READ_LBA, offset, RKFT_OFF_INCR)))
             block = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
             self.recv_csw()
 
@@ -336,7 +381,7 @@ class RkOperation(object):
 
             # read the image on disk as block2
             self.send_cbw(''.join(bulk_cb_wrap(
-                0x80, 0x000a1400, offset, RKFT_OFF_INCR)))
+                DIRECTION_IN, READ_LBA, offset, RKFT_OFF_INCR)))
             block2 = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
             self.recv_csw()
 
@@ -375,7 +420,7 @@ class RkOperation(object):
             buf[:len(block)] = block
 
             self.send_cbw(''.join(bulk_cb_wrap(
-                0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
+                DIRECTION_IN, WRITE_LBA, offset, RKFT_OFF_INCR)))
             self.send_or_recv_data(data=str(buf))
             self.recv_csw()
 
@@ -385,7 +430,7 @@ class RkOperation(object):
     def rk_reboot(self):
         self.init_device()
         self.send_cbw(''.join(bulk_cb_wrap(
-            0x00, 0x0006ff00, 0x00000000, 0x00)))
+            DIRECTION_OUT, DEVICE_RESET)))
         self.recv_csw()
         self.__logger.ftlog_print("Rebooting device\n")
 
@@ -423,7 +468,7 @@ class RkOperation(object):
             show_process(size - 32, total, 'Erase')
 
             self.send_cbw(''.join(bulk_cb_wrap(
-                0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
+                DIRECTION_IN, WRITE_LBA, offset, RKFT_OFF_INCR)))
             self.send_or_recv_data(data=buf)
             self.recv_csw()
 
