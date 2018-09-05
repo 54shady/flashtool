@@ -407,17 +407,14 @@ class RkOperation(object):
         else:
             self.__logger.ftlog_error("Invalid parameter file!\n")
 
-    def rk_erase_partition(self, offset, size):
+    def rk_erase_partition(self, name, offset, size):
         self.init_device()
-
-        self.__logger.ftlog_print(
-            "Erasing partition 0x%08X@0x%08X\n" % (size, offset))
 
         # write the storage with empty 0xFF
         buf = ''.join([chr(0xFF)] * RKFT_BLOCKSIZE)
+        total = size
         while size > 0:
-            self.__logger.ftlog_print(
-                "erasing flash memory at offset 0x%08X\n" % offset)
+            show_process(size - 32, total, 'Erase')
 
             self.send_cbw(''.join(bulk_cb_wrap(
                 0x80, 0x000a1500, offset, RKFT_OFF_INCR)))
@@ -426,3 +423,5 @@ class RkOperation(object):
 
             offset += RKFT_OFF_INCR
             size -= RKFT_OFF_INCR
+
+        self.__logger.ftlog_nice("\nPartition %s erased\n" % name[1:])

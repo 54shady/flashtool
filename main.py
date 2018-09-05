@@ -155,7 +155,7 @@ class FlashTool(object):
     def erase_partition(self, part_name):
         offset, size = self.get_partition(part_name)
         with self.get_operation() as op:
-            op.rk_erase_partition(offset, size)
+            op.rk_erase_partition(part_name, offset, size)
 
     def read_image(self, part_name, image_file):
         with self.get_operation() as op:
