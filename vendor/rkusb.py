@@ -135,10 +135,11 @@ BULK_CBW[0:4] = 'USBC'
 global_cmd_id = -1
 BULK_CS_WRAP_LEN = 13  # struct bulk_cs_wrap 13 bytes
 
-# command block wrapper
-
 
 def bulk_cb_wrap(flag, command, offset, size):
+    '''
+    rkusb command block wrapper
+    '''
     BULK_CBW[CBW_TAG] = next_cmd_id()
     BULK_CBW[CBW_FLAG] = chr(flag)
     BULK_CBW[CBW_SIZE] = chr(size)
@@ -259,8 +260,13 @@ class RkOperation(object):
         '''
         data direction from host to slave
         endpoint is EP_OUT
+
+        In rkloader(u-boot)
+        function do_rockusb_cmd
+        usbcmd.cmnd = usbcmd.cbw.CDB[0]
+        the CDB[0] will decide the command in rkusb protocol
         '''
-        #print self.dump_str2hex(cbw)
+        #print '\nCDB[0] : ' + self.dump_str2hex(cbw[15]) + '\n'
         self.__dev_handle.bulkWrite(self.EP_OUT, cbw)
 
     def send_or_recv_data(self, data_len=0, data=None):
