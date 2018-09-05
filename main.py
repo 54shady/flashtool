@@ -183,24 +183,15 @@ class FlashTool(object):
                 op.rk_write_partition(offset, size, image_file)
 
     def get_partition(self, part_name):
-        if part_name.startswith('0x'):
-            # 0x????@0x???? : size@offset
-            partitions = self.PARTITION_PATTERN.findall(part_name)
-            if len(partitions) != 1:
-                raise ValueError('Invalid partition %s' % part_name)
-            #print partitions
-            return (int(partitions[0][1], 16),
-                    int(partitions[0][0], 16))
-        else:
-            if part_name[0] == '@':
-                part_name = part_name[1:]
-            if not self.partitions:
-                self.load_partitions()
-            try:
-                return self.partitions[part_name]  # (offset, size)
-            except KeyError:
-                print 'ERROR : %s is not in partition table' % part_name
-                sys.exit(-1)
+        if part_name[0] == '@':
+            part_name = part_name[1:]
+        if not self.partitions:
+            self.load_partitions()
+        try:
+            return self.partitions[part_name]  # (offset, size)
+        except KeyError:
+            print 'ERROR : %s is not in partition table' % part_name
+            sys.exit(-1)
 
     def get_operation(self):
         with self.get_rkoperation() as op:
@@ -210,8 +201,9 @@ class FlashTool(object):
         self.logger.ftlog_dividor()
         print "Partition table format(name : offset@size)"
         for k in self.partitions:
-            print '%s : %d@%d' % (
-                k, self.partitions[k][0], self.partitions[k][1])
+            print '%-20s (0x%08X @ 0x%08X) %4d MiB' % (
+                k, self.partitions[k][0], self.partitions[k][1],
+                self.partitions[k][1] * 512 / 1024 / 1024)
         self.logger.ftlog_dividor()
 
     def load_partitions(self):
@@ -221,7 +213,6 @@ class FlashTool(object):
         for size, offset, name in loaded_partitions:
             partitions[name] = (offset, size)
         self.partitions = partitions
-        #print self.partitions
         self.print_partitions()
 
     def get_rkoperation(self):
