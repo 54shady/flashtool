@@ -111,13 +111,22 @@ class FlashTool(object):
         self.partitions = {}
 
     def main(self, args):
+        # print usage only
         if args[0] in ("help", "-h", "--help"):
             self.usage()
             return 0
 
+        # got right device
+        # get the operation here
         dev = wait_for_one_device()
         self.bus_id = dev[1][0]
         self.dev_id = dev[1][1]
+
+        # get rkoperation
+        with self.get_operation() as op:
+            self.op = op
+
+        # start parse command and execute
         self.parse_and_execute(args)
 
     def parse_and_execute(self, args):
@@ -154,33 +163,28 @@ class FlashTool(object):
 
     def erase_partition(self, part_name):
         offset, size = self.get_partition(part_name)
-        with self.get_operation() as op:
-            op.rk_erase_partition(part_name, offset, size)
+        self.op.rk_erase_partition(part_name, offset, size)
 
     def read_image(self, part_name, image_file):
-        with self.get_operation() as op:
-            if part_name == '@parameter':
-                op.rk_read_parameter(image_file)
-            else:
-                offset, size = self.get_partition(part_name)
-                op.rk_read_partition(offset, size, image_file)
+        if part_name == '@parameter':
+            self.op.rk_read_parameter(image_file)
+        else:
+            offset, size = self.get_partition(part_name)
+            self.op.rk_read_partition(offset, size, image_file)
 
     def compare_imagefile(self, part_name, image_file):
         offset, size = self.get_partition(part_name)
-        with self.get_operation() as op:
-            op.cmp_part_with_file(offset, size, image_file)
+        self.op.cmp_part_with_file(offset, size, image_file)
 
     def reboot_device(self):
-        with self.get_operation() as op:
-            op.rk_reboot()
+        self.op.rk_reboot()
 
     def write_image(self, part_name, image_file):
-        with self.get_operation() as op:
-            if part_name == '@parameter':
-                op.rk_write_parameter(image_file)
-            else:
-                offset, size = self.get_partition(part_name)
-                op.rk_write_partition(offset, size, image_file)
+        if part_name == '@parameter':
+            self.op.rk_write_parameter(image_file)
+        else:
+            offset, size = self.get_partition(part_name)
+            self.op.rk_write_partition(offset, size, image_file)
 
     def get_partition(self, part_name):
         if part_name[0] == '@':
@@ -208,10 +212,10 @@ class FlashTool(object):
 
     def load_partitions(self):
         partitions = {}
-        op = self.get_operation()
-        loaded_partitions = op.rk_load_partitions()
+        loaded_partitions = self.op.rk_load_partitions()
         for size, offset, name in loaded_partitions:
             partitions[name] = (offset, size)
+
         self.partitions = partitions
         self.print_partitions()
 
