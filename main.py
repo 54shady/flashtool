@@ -140,7 +140,7 @@ class FlashTool(object):
                 while len(args) >= 2 \
                     and (args[0].startswith("@")
                          or args[0].startswith("0x")):
-                    self.write_image(args[0], args[1])
+                    self.write_partition(args[0], args[1])
                     # support multiple command in one line
                     args = args[2:]
             elif args[0] == "cmp":
@@ -148,7 +148,7 @@ class FlashTool(object):
                 # support multiple command in one line
                 args = args[3:]
             elif args[0] == "read":
-                self.read_image(args[1], args[2])
+                self.read_partition(args[1], args[2])
                 # support multiple command in one line
                 args = args[3:]
             elif args[0] == "erase":
@@ -165,7 +165,7 @@ class FlashTool(object):
         offset, size = self.get_partition(part_name)
         self.op.rk_erase_partition(part_name, offset, size)
 
-    def read_image(self, part_name, image_file):
+    def read_partition(self, part_name, image_file):
         if part_name == '@parameter':
             self.op.rk_read_parameter(image_file)
         else:
@@ -179,7 +179,7 @@ class FlashTool(object):
     def reboot_device(self):
         self.op.rk_reboot()
 
-    def write_image(self, part_name, image_file):
+    def write_partition(self, part_name, image_file):
         if part_name == '@parameter':
             self.op.rk_write_parameter(image_file)
         else:

@@ -244,6 +244,9 @@ class RkOperation(object):
         if not self.__dev_handle:
             raise Exception('Failed to open device.')
 
+        # do some init for the device
+        self.init_device()
+
     def __enter__(self):
         return self
 
@@ -267,8 +270,8 @@ class RkOperation(object):
 
     def rk_load_partitions(self):
         partitions = []
-        self.init_device()
 
+        # read flash info
         self.send_cbw(bulk_cb_wrap("READ_FLASH_INFO"))
         content = self.send_or_recv_data(data_len=USB_BULK_READ_SIZE)
         self.recv_csw()
@@ -276,6 +279,7 @@ class RkOperation(object):
         flash_size = (ord(content[0])) | (ord(content[1]) << 8) | (
             ord(content[2]) << 16) | (ord(content[3]) << 24)
 
+        # read lba
         self.send_cbw(bulk_cb_wrap("READ_LBA", size=PART_OFF_INCR))
         content = self.send_or_recv_data(data_len=PART_BLOCKSIZE)
         self.recv_csw()
@@ -295,8 +299,6 @@ class RkOperation(object):
         return partitions
 
     def rk_read_partition(self, offset, size, file_name):
-        self.init_device()
-
         self.__logger.ftlog_dividor()
         self.__logger.ftlog_print("Starting read %s\n" % file_name)
 
@@ -360,7 +362,6 @@ class RkOperation(object):
             size -= RKFT_OFF_INCR
 
     def rk_write_partition(self, offset, size, file_name):
-        self.init_device()
         original_offset, original_size = offset, size
 
         self.__logger.ftlog_dividor()
@@ -421,7 +422,6 @@ class RkOperation(object):
         return self.integrity
 
     def rk_usb_write(self, offset, size, filename):
-        self.init_device()
         total = size
         while size > 0:
             show_process(total - size, total, 'Writing')
@@ -440,7 +440,6 @@ class RkOperation(object):
             size -= RKFT_OFF_INCR
 
     def rk_reboot(self):
-        self.init_device()
         self.send_cbw(bulk_cb_wrap("DEVICE_RESET"))
         self.recv_csw()
         self.__logger.ftlog_print("Rebooting device\n")
@@ -470,8 +469,6 @@ class RkOperation(object):
             self.__logger.ftlog_error("Invalid parameter file!\n")
 
     def rk_erase_partition(self, name, offset, size):
-        self.init_device()
-
         # write the storage with empty 0xFF
         buf = ''.join([chr(0xFF)] * RKFT_BLOCKSIZE)
         total = size
