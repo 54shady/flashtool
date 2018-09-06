@@ -269,6 +269,10 @@ class RkOperation(object):
         time.sleep(0.02)
 
     def rk_load_partitions(self):
+        '''
+        define a list partition as list type
+        return the partition in dict type
+        '''
         partitions = []
 
         # read flash info
@@ -293,10 +297,12 @@ class RkOperation(object):
                         size = flash_size - offset
                     else:
                         size = int(size, 16)
-                    partitions.append((size, offset, name))
+                    # make a nesting list, so we can covert it into dict
+                    # list[('key', (value1, value2)), ...]
+                    partitions.append((name, (offset, size)))
                 break
 
-        return partitions
+        return dict(partitions)
 
     def rk_read_partition(self, offset, size, file_name):
         self.__logger.ftlog_dividor()

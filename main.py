@@ -202,6 +202,9 @@ class FlashTool(object):
             return op
 
     def print_partitions(self):
+        '''
+        Traversal the dictionary type data
+        '''
         self.logger.ftlog_dividor()
         print "Partition table format(name : offset@size)"
         for k in self.partitions:
@@ -211,12 +214,7 @@ class FlashTool(object):
         self.logger.ftlog_dividor()
 
     def load_partitions(self):
-        partitions = {}
-        loaded_partitions = self.op.rk_load_partitions()
-        for size, offset, name in loaded_partitions:
-            partitions[name] = (offset, size)
-
-        self.partitions = partitions
+        self.partitions = self.op.rk_load_partitions()
         self.print_partitions()
 
     def get_rkoperation(self):
