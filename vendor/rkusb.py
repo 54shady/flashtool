@@ -128,8 +128,8 @@ CBW_LUN = 13
 CBW_LENGTH = 14
 CBW_CDB0 = 15
 CBW_OFFSET = 17
-BULK_CBW = [chr(0)] * 31
-BULK_CBW[0:4] = 'USBC'
+BULK_CBW = [chr(0)] * 31  # bulk cbw is a list
+BULK_CBW[0:4] = 'USBC'  # list can assgin like this, nor str type
 global_cmd_id = -1
 BULK_CS_WRAP_LEN = 13  # struct bulk_cs_wrap 13 bytes
 
@@ -182,6 +182,7 @@ def bulk_cb_wrap(cmd_name, offset=0, size=0):
     '''
     rkusb command block wrapper
     cmd_name : rkusb command name in string
+    return a list
     '''
     # findout command direction
     flag = rkusb_command[cmd_name][1]
@@ -205,7 +206,12 @@ def bulk_cb_wrap(cmd_name, offset=0, size=0):
 
     # the 8th byte of cdb
     BULK_CBW[CBW_CDB0 + 8] = chr(size)
-    return BULK_CBW
+
+    # BULK_CBW is a list type data
+    # because the send_cbw need a string value
+    # so need to covert the list to string
+    # ''.join() make the list into a new sting
+    return ''.join(BULK_CBW)
 
 
 class RkOperation(object):
@@ -246,7 +252,7 @@ class RkOperation(object):
 
     def __rk_device_init(self):
         # Init
-        self.send_cbw(''.join(bulk_cb_wrap("TEST_UNIT_READY")))
+        self.send_cbw(bulk_cb_wrap("TEST_UNIT_READY"))
         self.recv_csw()
 
     def init_device(self):
@@ -263,15 +269,14 @@ class RkOperation(object):
         partitions = []
         self.init_device()
 
-        self.send_cbw(''.join(bulk_cb_wrap("READ_FLASH_INFO")))
+        self.send_cbw(bulk_cb_wrap("READ_FLASH_INFO"))
         content = self.send_or_recv_data(data_len=USB_BULK_READ_SIZE)
         self.recv_csw()
 
         flash_size = (ord(content[0])) | (ord(content[1]) << 8) | (
             ord(content[2]) << 16) | (ord(content[3]) << 24)
 
-        self.send_cbw(''.join(bulk_cb_wrap(
-            "READ_LBA", size=PART_OFF_INCR)))
+        self.send_cbw(bulk_cb_wrap("READ_LBA", size=PART_OFF_INCR))
         content = self.send_or_recv_data(data_len=PART_BLOCKSIZE)
         self.recv_csw()
 
@@ -317,6 +322,8 @@ class RkOperation(object):
         function do_rockusb_cmd
         usbcmd.cmnd = usbcmd.cbw.CDB[0]
         the CDB[0] will decide the command in rkusb protocol
+
+        cbw need a string type
         '''
         #print '\nCDB[0] : ' + self.dump_str2hex(cbw[15]) + '\n'
         #print '\n' + self.dump_str2hex(cbw[12:16]) + '\n'
@@ -340,8 +347,7 @@ class RkOperation(object):
         while size > 0:
             show_process(total - size + 32, total, 'Reading')
 
-            self.send_cbw(''.join(bulk_cb_wrap(
-                "READ_LBA", offset, RKFT_OFF_INCR)))
+            self.send_cbw(bulk_cb_wrap("READ_LBA", offset, RKFT_OFF_INCR))
             block = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
             self.recv_csw()
 
@@ -388,8 +394,7 @@ class RkOperation(object):
             block1 = filename.read(RKFT_BLOCKSIZE)
 
             # read the image on disk as block2
-            self.send_cbw(''.join(bulk_cb_wrap(
-                "READ_LBA", offset, RKFT_OFF_INCR)))
+            self.send_cbw(bulk_cb_wrap("READ_LBA", offset, RKFT_OFF_INCR))
             block2 = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
             self.recv_csw()
 
@@ -427,8 +432,7 @@ class RkOperation(object):
             buf = bytearray(RKFT_BLOCKSIZE)
             buf[:len(block)] = block
 
-            self.send_cbw(''.join(bulk_cb_wrap(
-                "WRITE_LBA", offset, RKFT_OFF_INCR)))
+            self.send_cbw(bulk_cb_wrap("WRITE_LBA", offset, RKFT_OFF_INCR))
             self.send_or_recv_data(data=str(buf))
             self.recv_csw()
 
@@ -437,8 +441,7 @@ class RkOperation(object):
 
     def rk_reboot(self):
         self.init_device()
-        self.send_cbw(''.join(bulk_cb_wrap(
-            "DEVICE_RESET")))
+        self.send_cbw(bulk_cb_wrap("DEVICE_RESET"))
         self.recv_csw()
         self.__logger.ftlog_print("Rebooting device\n")
 
@@ -475,8 +478,7 @@ class RkOperation(object):
         while size > 0:
             show_process(size - 32, total, 'Erase')
 
-            self.send_cbw(''.join(bulk_cb_wrap(
-                "WRITE_LBA", offset, RKFT_OFF_INCR)))
+            self.send_cbw(bulk_cb_wrap("WRITE_LBA", offset, RKFT_OFF_INCR))
             self.send_or_recv_data(data=buf)
             self.recv_csw()
 
