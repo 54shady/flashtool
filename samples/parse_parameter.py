@@ -12,7 +12,7 @@ PARTITION_PATTERN = re.compile(r'(-|0x[0-9a-fA-F]+)@(0x[0-9a-fA-F]+)\((.*?)\)')
 FLASH_SIZE = 30777344
 
 # parameter file name
-PARAMETER_FILE_NAME = "parameter"
+PARAMETER_FILE_NAME = "parameter.txt"
 
 
 def main():
