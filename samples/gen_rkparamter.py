@@ -72,10 +72,16 @@ if __name__ == '__main__':
         print 'Done.'
     elif sys.argv[1] == '-u':
         print 'Unpacking...'
-        # open file with binary mode
-        with open("partition.bin", 'rb') as partition:
-            data = partition.read()
-            buf = RKCRC.verify_parameter_image(data)
+        #assert os.path.exists("partition.bin")
+        try:
+            # open file with binary mode
+            with open("partition.bin", 'rb') as partition:
+                data = partition.read()
+                buf = RKCRC.verify_parameter_image(data)
+        except IOError:
+            print 'Try generate the partition.bin first?'
+            print 'python %s -p' % sys.argv[0]
+            sys.exit(-2)
 
         # open newparameter.txt for backup context
         with open("newparameter.txt", "w") as parameter:
