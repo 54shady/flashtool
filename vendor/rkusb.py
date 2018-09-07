@@ -435,11 +435,9 @@ class RkOperation(object):
             block = filename.read(RKFT_BLOCKSIZE)
             if not block:
                 break
-            buf = bytearray(RKFT_BLOCKSIZE)
-            buf[:len(block)] = block
 
             self.send_cbw(bulk_cb_wrap("WRITE_LBA", offset, RKFT_OFF_INCR))
-            self.send_or_recv_data(data=str(buf))
+            self.send_or_recv_data(data=block)
             self.recv_csw()
 
             offset += RKFT_OFF_INCR
