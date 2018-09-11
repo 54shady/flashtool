@@ -5,7 +5,7 @@
 
 import io
 import re
-import protocol
+from usb1 import USBContext
 import time
 import misc.rkcrc as RKCRC
 import sys
@@ -83,7 +83,7 @@ def list_rk_devices():
 
     context = None
     try:
-        context = protocol.USBContext()
+        context = USBContext()
         context.setDebug(3)
         devices = context.getDeviceList()
         for device in devices:
@@ -218,7 +218,7 @@ class RkOperation(object):
     def __init__(self, logger, bus_id, dev_id):
         self.__logger = logger
         # get a usb context, which is a session
-        self.__context = protocol.USBContext()
+        self.__context = USBContext()
         self.__context.setDebug(3)
 
         # for image flash check, default True
@@ -280,15 +280,17 @@ class RkOperation(object):
         content = self.send_or_recv_data(data_len=USB_BULK_READ_SIZE)
         self.recv_csw()
 
-        flash_size = (ord(content[0])) | (ord(content[1]) << 8) | (
-            ord(content[2]) << 16) | (ord(content[3]) << 24)
+        flash_size = (ord(chr(content[0]))) | (ord(chr(content[1])) << 8) | (
+            ord(chr(content[2])) << 16) | (ord(chr(content[3])) << 24)
 
         # read lba
         self.send_cbw(bulk_cb_wrap("READ_LBA", size=PART_OFF_INCR))
         content = self.send_or_recv_data(data_len=PART_BLOCKSIZE)
         self.recv_csw()
 
-        for line in content.split('\n'):
+        # convert bytearray context into str
+        ctx = str(content)
+        for line in ctx.split('\n'):
             if line.startswith('CMDLINE:'):
                 # return a list of tuple (size, unused, offset, part_name)
                 for size, offset, name in re.findall(PARTITION_PATTERN, line):
