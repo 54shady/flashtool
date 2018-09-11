@@ -1,5 +1,15 @@
 # flashtool(A libusb base flash tool)
 
+## Package Required
+
+For branch nowrapper need install package libusb1
+
+	sudo pip install libusb1
+
+For branch standalone
+
+	libusb wrapped already inside
+
 ## INTRO
 
 [Reference : rkflashkit](https://github.com/linuxerwang/rkflashkit)
