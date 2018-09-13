@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 # coding=utf-8
 
 import struct
@@ -73,50 +72,68 @@ table = [
 ]
 
 
-def rkcrc(data, crc=0):
+def calculate_crc(data, crc=0):
     crc = crc & 0xFFFFFFFF
     for x in data:
         crc = table[ord(x) ^ (crc >> 24)] ^ ((crc << 8) & 0xFFFFFFFF)
     return crc
 
 
-def make_parameter_image(parameter_file_data):
-    '''
-    There is a macro in u-boot (rkloader)
-    #define PARM_TAG        0x4D524150
-    the "PARM" Hexadecimal value is 0x4D524150
-    make string file into a binary file
+DEFAULT_MAGIC_NUMBER = "DEFAULT"
 
+
+def pack_data(raw_data, magic=DEFAULT_MAGIC_NUMBER):
+    '''
+    pack raw data with the format below
     data format as below:
-
-    -----------
-    PARM 4bytes
-    -----------
-    len 4bytes
-    -----------
+    -----------------
+    magic nbytes
+    -----------------
+    data len 4bytes
+    -----------------
     data nbytes
-    -----------
+    -----------------
     crc 4bytes
-    -----------
+    -----------------
     '''
-    # TAG
-    buf = bytearray("PARM")
-    length = len(parameter_file_data)
-    # LEN
-    buf.extend(struct.pack("<L", length))
+    # MAGIC NUMBER
+    bin_buf = bytearray(magic)
+    length = len(raw_data)
+    # LEN, unsign long
+    bin_buf.extend(struct.pack("<L", length))
     # DATA
-    buf.extend(parameter_file_data)
+    bin_buf.extend(raw_data)
     # CRC
-    buf.extend(struct.pack("<L", rkcrc(parameter_file_data)))
-    return buf
+    bin_buf.extend(struct.pack("<L", calculate_crc(raw_data)))
+    return bin_buf
 
-def verify_parameter_image(parameter_img_data):
-    with io.BytesIO(parameter_img_data) as filename:
-        tag = filename.read(4)
-        if tag == "PARM":
+
+def unpack_data(bin_data, magic=DEFAULT_MAGIC_NUMBER):
+    with io.BytesIO(bin_data) as filename:
+        tag = filename.read(len(magic))
+        if tag == magic:
             length = struct.unpack("<L", filename.read(4))[0]
             data = filename.read(length)
             if len(data) == length:
-                crc = rkcrc(data)
+                crc = calculate_crc(data)
                 if crc == struct.unpack("<L", filename.read(4))[0]:
                     return data
+
+
+if __name__ == '__main__':
+    # raw data
+    rdata = raw_input("Enter a string : ")
+    magic = raw_input("Enter a magic number <Enter to use default> : ")
+    if len(magic) == 0:
+        magic = DEFAULT_MAGIC_NUMBER
+    else:
+        print 'print magic is %s' % magic
+
+    # bin file
+    bfile = pack_data(rdata, magic)
+    with open('default.bin', 'wb') as image_file:
+        image_file.write(bfile)
+
+    newrdata = unpack_data(bfile, magic)
+    with open('default.txt', 'w') as text_file:
+        text_file.write(newrdata)
