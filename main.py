@@ -5,6 +5,7 @@
 Usage: <cmd> [args] [<cmd> [args]...]
 
 part                              List partition
+chk                               Check read/write operation
 write @<PARTITION> <IMAGE FILE>   Write partition with image file
 cmp @<PARTITION> <IMAGE FILE>     Compare partition with image file
 read @<PARTITION> <IMAGE FILE>    Read partition to image file
@@ -13,7 +14,7 @@ reboot                            Reboot device
 
 For example, flash device with boot.img and kernel.img, then reboot:
 
-python run.py write @boot boot.img @kernel.img kernel.img reboot
+python run.py [chk] write @boot boot.img @kernel.img kernel.img reboot
 """
 
 from datetime import datetime
@@ -109,12 +110,19 @@ class FlashTool(object):
         self.bus_id = 0
         self.dev_id = 0
         self.partitions = {}
+        # don't check read/write as default
+        self.chk_rw = False
 
     def main(self, args):
         # print usage only
         if args[0] in ("help", "-h", "--help"):
             self.usage()
             return 0
+
+        # check read/write operation
+        if args[0] == "chk":
+            self.chk_rw = True
+            args = args[1:]
 
         # got right device
         # get the operation here
@@ -219,7 +227,7 @@ class FlashTool(object):
 
     def get_rkoperation(self):
         assert self.bus_id and self.dev_id
-        return RkOperation(self.logger, self.bus_id, self.dev_id)
+        return RkOperation(self.logger, self.bus_id, self.dev_id, self.chk_rw)
 
     def usage(self):
         print __doc__
