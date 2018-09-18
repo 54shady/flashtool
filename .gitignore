@@ -1,3 +1,6 @@
 *.pyc
 tags
 *.img
+*.vim
+*.info
+*.bin
