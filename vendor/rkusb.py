@@ -17,6 +17,8 @@ PART_OFF_INCR = PART_BLOCKSIZE >> 9
 RKFT_BLOCKSIZE = 0x4000  # must be multiple of 512
 RKFT_OFF_INCR = RKFT_BLOCKSIZE >> 9
 RKFT_DISPLAY = 0x1000
+
+# 0xAA@0xBB(name), -@0xBB(name)
 PARTITION_PATTERN = re.compile(r'(-|0x[0-9a-fA-F]+)@(0x[0-9a-fA-F]+)\((.*?)\)')
 
 RK_VENDOR_ID = 0x2207

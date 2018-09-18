@@ -20,7 +20,6 @@ python run.py [chk] write @boot boot.img @kernel.img kernel.img reboot
 from datetime import datetime
 import time
 from vendor.rkusb import list_rk_devices, RkOperation
-import re
 import sys
 
 # a little bit like enum in C language
@@ -103,7 +102,6 @@ class FlashTool(object):
     '''
     command line mode
     '''
-    PARTITION_PATTERN = re.compile(r'(0x[0-9a-fA-F]+)@(0x[0-9a-fA-F]+)')
 
     def __init__(self):
         self.logger = FlashToolLogger(use_color=True)
