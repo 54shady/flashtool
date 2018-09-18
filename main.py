@@ -91,7 +91,7 @@ class FlashToolLogger(object):
             self.WARN_COLOR, current_time, self.RESET_COLOR))
 
     def ftlog_nice(self, message):
-        self.ftlog_print('%s%s%s\n' %
+        self.ftlog_print('\n%s%s%s\n' %
                          (self.SUCC_COLOR, message, self.RESET_COLOR))
 
     def ftlog_error(self, message):

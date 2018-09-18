@@ -321,7 +321,6 @@ class RkOperation(object):
             self.cmp_part_with_file(offset, size, file_name)
 
         self.__logger.ftlog_nice("Done")
-        self.__logger.ftlog_dividor()
 
     def dump_str2hex(self, string_value):
         return ' '.join(hex(x) for x in bytearray(string_value))
@@ -358,7 +357,7 @@ class RkOperation(object):
     def rk_usb_read(self, offset, size, filename):
         total = size
         while size > 0:
-            show_process(size - 32, total, 'Reading')
+            show_process(size - RKFT_OFF_INCR, total, 'Reading')
 
             self.send_cbw(bulk_cb_wrap("READ_LBA", offset, RKFT_OFF_INCR))
             block = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
@@ -400,7 +399,6 @@ class RkOperation(object):
                 original_offset, image_size_sectors, file_name)
 
         self.__logger.ftlog_nice("Done")
-        self.__logger.ftlog_dividor()
 
     def cmp_part_with_file(self, offset, size, file_name):
         '''
@@ -417,7 +415,7 @@ class RkOperation(object):
     def __cmp_part_with_file(self, offset, size, filename):
         total = size
         while size > 0:
-            show_process(size - 32, total, 'Checking image')
+            show_process(size - RKFT_OFF_INCR, total, 'Checking image')
 
             # read the image file as block1
             block1 = filename.read(RKFT_BLOCKSIZE)
@@ -452,7 +450,7 @@ class RkOperation(object):
     def rk_usb_write(self, offset, size, filename):
         total = size
         while size > 0:
-            show_process(size - 32, total, 'Writing')
+            show_process(size - RKFT_OFF_INCR, total, 'Writing')
 
             block = filename.read(RKFT_BLOCKSIZE)
             if not block:
@@ -507,7 +505,7 @@ class RkOperation(object):
         buf = ''.join([chr(0xFF)] * RKFT_BLOCKSIZE)
         total = size
         while size > 0:
-            show_process(size - 32, total, 'Erase')
+            show_process(size - RKFT_OFF_INCR, total, 'Erase')
 
             self.send_cbw(bulk_cb_wrap("WRITE_LBA", offset, RKFT_OFF_INCR))
             self.send_or_recv_data(data=buf)
