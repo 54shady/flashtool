@@ -1,19 +1,14 @@
 # flashtool(A libusb base flash tool)
 
-## Install and Uninstall
+## Package Required
 
-Install from tarball
+For branch nowrapper need install package libusb1
 
-	python setup.py sdist
-	sudo pip install dist/flashtool-1.0.0.tar.gz
+	sudo pip install libusb1
 
-Install from source
+For branch standalone
 
-	sudo pip install -e .
-
-Uninstall
-
-	sudo -H pip uninstall flashtool
+	libusb wrapped already inside
 
 ## INTRO
 
@@ -39,25 +34,4 @@ Uninstall
 
     For example, flash device with boot.img and kernel.img, then reboot:
 
-	flashtool [chk] write @boot boot.img @kernel.img kernel.img reboot
-
-## Attached
-
-python应用程序目录结构一般如下
-
-	flashtool
-	.
-	├── flashtool <--和最外层同名,setup.py和MANIFEST.in中将用到
-	|				在rkusb.py中也用的是这个名字
-	├── MANIFEST.in
-	├── README.md
-	└── setup.py
-
-关于setup.py中entry_points字段
-
-	console_scripts表示命令行工具
-
-其中下面表达式内容
-
-	flashtool = flashtool:main
-	左边是最终生成可执行文件的名字,右边的flashtool是一级目录的名字(如上面标注)
+	python run.py [chk] write @boot boot.img @kernel.img kernel.img reboot

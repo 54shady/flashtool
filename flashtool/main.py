@@ -14,7 +14,7 @@ reboot                            Reboot device
 
 For example, flash device with boot.img and kernel.img, then reboot:
 
-python run.py [chk] write @boot boot.img @kernel.img kernel.img reboot
+flashtool [chk] write @boot boot.img @kernel.img kernel.img reboot
 """
 
 from datetime import datetime
@@ -113,7 +113,7 @@ class FlashTool(object):
 
     def main(self, args):
         # print usage only
-        if args[0] in ("help", "-h", "--help"):
+        if len(args) < 1 or args[0] in ("help", "-h", "--help"):
             self.usage()
             return 0
 

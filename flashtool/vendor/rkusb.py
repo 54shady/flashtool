@@ -5,7 +5,7 @@ import io
 import re
 from usb1 import USBContext
 import time
-import misc.rkcrc as RKCRC
+from flashtool.misc.rkcrc import rkcrc as RKCRC
 import sys
 import os
 
