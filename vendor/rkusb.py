@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-
-
 # coding=utf-8
 
 import io
@@ -9,8 +7,10 @@ import protocol
 import time
 import misc.rkcrc as RKCRC
 import sys
+import os
 
 
+PARTITON_SECTOR_SIZE = 512  # 512 bytes
 USB_BULK_READ_SIZE = 512
 PART_BLOCKSIZE = 0x800  # must be multiple of 512
 PART_OFF_INCR = PART_BLOCKSIZE >> 9
@@ -215,11 +215,14 @@ def bulk_cb_wrap(cmd_name, offset=0, size=0):
 
 
 class RkOperation(object):
-    def __init__(self, logger, bus_id, dev_id):
+    def __init__(self, logger, bus_id, dev_id, chk_rw):
         self.__logger = logger
         # get a usb context, which is a session
         self.__context = protocol.USBContext()
         self.__context.setDebug(3)
+
+        # check read/write operation
+        self.__chk_rw = chk_rw
 
         # for image flash check, default True
         self.integrity = True
@@ -306,14 +309,16 @@ class RkOperation(object):
 
     def rk_read_partition(self, offset, size, file_name):
         self.__logger.ftlog_dividor()
-        self.__logger.ftlog_print("Starting read %s\n" % file_name)
+        self.__logger.ftlog_print("Starting read %s(%d bytes)\n" % (file_name,
+                                                                    size))
 
         # open the file for writing
         with open(file_name, 'w') as filename:
             self.rk_usb_read(offset, size, filename)
 
-        # Verify backup.
-        self.cmp_part_with_file(offset, size, file_name)
+        if self.__chk_rw:
+            # Verify backup.
+            self.cmp_part_with_file(offset, size, file_name)
 
         self.__logger.ftlog_nice("Done")
         self.__logger.ftlog_dividor()
@@ -353,7 +358,7 @@ class RkOperation(object):
     def rk_usb_read(self, offset, size, filename):
         total = size
         while size > 0:
-            show_process(total - size + 32, total, 'Reading')
+            show_process(size - 32, total, 'Reading')
 
             self.send_cbw(bulk_cb_wrap("READ_LBA", offset, RKFT_OFF_INCR))
             block = self.send_or_recv_data(data_len=RKFT_BLOCKSIZE)
@@ -368,15 +373,32 @@ class RkOperation(object):
             size -= RKFT_OFF_INCR
 
     def rk_write_partition(self, offset, size, file_name):
-        original_offset, original_size = offset, size
+        image_size_bytes = os.lstat(file_name).st_size
+        if image_size_bytes % PARTITON_SECTOR_SIZE == 0:
+            one_more_sector = 0
+        else:
+            one_more_sector = 1
+        image_size_sectors = image_size_bytes / PARTITON_SECTOR_SIZE + one_more_sector
+
+        original_offset = offset
 
         self.__logger.ftlog_dividor()
-        self.__logger.ftlog_print("Starting write %s\n" % file_name)
+        self.__logger.ftlog_print("Starting write %s(%d bytes)\n" % (file_name,
+                                                                     image_size_sectors))
         with open(file_name) as filename:
-            self.rk_usb_write(offset, size, filename)
+            if image_size_sectors <= size:
+                # just write the image file size to partiton
+                self.rk_usb_write(offset, image_size_sectors, filename)
+            else:
+                print 'partition size is too small'
+                sys.exit(-1)
 
-        # Verify backup.
-        self.cmp_part_with_file(original_offset, original_size, file_name)
+        if self.__chk_rw:
+            # Verify backup
+            # just compare the image file's size is enough
+            self.cmp_part_with_file(
+                original_offset, image_size_sectors, file_name)
+
         self.__logger.ftlog_nice("Done")
         self.__logger.ftlog_dividor()
 
@@ -430,14 +452,22 @@ class RkOperation(object):
     def rk_usb_write(self, offset, size, filename):
         total = size
         while size > 0:
-            show_process(total - size, total, 'Writing')
+            show_process(size - 32, total, 'Writing')
 
             block = filename.read(RKFT_BLOCKSIZE)
             if not block:
                 break
 
+            # FIXME : wired situation when write large file
+            # store the image into byte format
+            # if not to do so, hanging will happen
+            byte_buf = bytearray(RKFT_BLOCKSIZE)
+            byte_buf[:len(block)] = block
+
             self.send_cbw(bulk_cb_wrap("WRITE_LBA", offset, RKFT_OFF_INCR))
-            self.send_or_recv_data(data=block)
+
+            # FIXME : convert the byte format into string
+            self.send_or_recv_data(data=str(byte_buf))
             self.recv_csw()
 
             offset += RKFT_OFF_INCR
