@@ -15,12 +15,16 @@ reboot                            Reboot device
 For example, flash device with boot.img and kernel.img, then reboot:
 
 python run.py [chk] write @boot boot.img @kernel.img kernel.img reboot
+
+or use smart write, which will flash the image in the sw_img if image exist.
+python run.py sw reboot
 """
 
 from datetime import datetime
 import time
 from vendor.rkusb import list_rk_devices, RkOperation
 import sys
+import os
 
 # a little bit like enum in C language
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
@@ -110,10 +114,22 @@ class FlashTool(object):
         self.partitions = {}
         # don't check read/write as default
         self.chk_rw = False
+        self.sw_img = [
+                "vendor.img",
+                "oem.img",
+                "trust.img",
+                "uboot.img",
+                "recovery.img",
+                "misc.img",
+                "system.img",
+                "boot.img",
+                "kernel.img",
+                "resource.img"
+                ]
 
     def main(self, args):
-        # print usage only
-        if args[0] in ("help", "-h", "--help"):
+        # print usage when no args or help
+        if not len(args) or args[0] in ("help", "-h", "--help"):
             self.usage()
             return 0
 
@@ -149,6 +165,16 @@ class FlashTool(object):
                     self.write_partition(args[0], args[1])
                     # support multiple command in one line
                     args = args[2:]
+            elif args[0] == "sw":
+                """
+                smart write
+                try to write image in sw_img list if exist
+                """
+                for image_file in self.sw_img:
+                    part_name = image_file[:-4]
+                    if os.path.exists(image_file):
+                        self.write_partition(part_name, image_file)
+                args = args[1:]
             elif args[0] == "cmp":
                 self.compare_imagefile(args[1], args[2])
                 # support multiple command in one line

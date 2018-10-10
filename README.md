@@ -35,3 +35,6 @@ For branch standalone
     For example, flash device with boot.img and kernel.img, then reboot:
 
 	python run.py [chk] write @boot boot.img @kernel.img kernel.img reboot
+
+	or use smart write, which will flash the image in the sw_img if image exist.
+	python run.py sw reboot
