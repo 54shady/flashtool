@@ -41,6 +41,10 @@ Uninstall
 
 	flashtool [chk] write @boot boot.img @kernel.img kernel.img reboot
 
+	or use smart write, which will flash the image in the sw_img if image exist.
+
+	flashtool [chk] sw [reboot]
+
 ## Attached
 
 python应用程序目录结构一般如下
