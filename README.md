@@ -2,16 +2,27 @@
 
 ## Install and Uninstall
 
-Install from tarball
+### Install from tarball
 
 	python setup.py sdist
 	sudo pip install dist/flashtool-1.0.0.tar.gz
 
-Install from source
+	without super user permission:
+	pip install --user dist/flashtool-1.0.0.tar.gz
+
+Maybe export local path is necessary(Gentoo)
+
+	export PATH=$PATH:~/.local/bin
+
+Add your user name to the usb group(Gentoo)
+
+	sudo usermod -aG usb your_user_name
+
+### Install from source
 
 	sudo pip install -e .
 
-Uninstall
+### Uninstall
 
 	sudo -H pip uninstall flashtool
 
