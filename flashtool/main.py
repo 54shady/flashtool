@@ -215,6 +215,16 @@ class FlashTool(object):
     def write_partition(self, part_name, image_file):
         if part_name == '@parameter':
             self.op.rk_write_parameter(image_file)
+        elif part_name.startswith("0x"):
+            offset = int(part_name[2:], 16)
+            image_size_bytes = os.lstat(image_file).st_size
+            if image_size_bytes % 512 == 0:
+                one_more_sector = 0
+            else:
+                one_more_sector = 1
+            image_size_sectors = image_size_bytes / 512 + one_more_sector
+            size = image_size_sectors
+            self.op.rk_write_partition(offset, size, image_file)
         else:
             offset, size = self.get_partition(part_name)
             self.op.rk_write_partition(offset, size, image_file)
